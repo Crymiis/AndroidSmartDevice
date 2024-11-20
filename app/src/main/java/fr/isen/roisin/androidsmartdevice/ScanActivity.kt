@@ -1,11 +1,13 @@
 package fr.isen.roisin.androidsmartdevice
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.widget.Toast
@@ -13,7 +15,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,7 +46,6 @@ class ScanActivity : ComponentActivity() {
         val seenAddresses = remember { mutableStateListOf<String>() } // Pour éviter les doublons
         val context = LocalContext.current
 
-        // Gestion des permissions
         val requestPermissionsLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.RequestMultiplePermissions()
         ) { permissions ->
@@ -51,7 +55,6 @@ class ScanActivity : ComponentActivity() {
             }
         }
 
-        // Demande des permissions au lancement
         LaunchedEffect(Unit) {
             requestPermissionsLauncher.launch(
                 arrayOf(
@@ -78,8 +81,8 @@ class ScanActivity : ComponentActivity() {
                         stopScan()
                         isScanning = false
                     } else {
-                        devices.clear() // Nettoyer les appareils détectés
-                        seenAddresses.clear() // Nettoyer les adresses uniques
+                        devices.clear()
+                        seenAddresses.clear()
                         startScan(devices, seenAddresses)
                         isScanning = true
                     }
@@ -95,33 +98,42 @@ class ScanActivity : ComponentActivity() {
                 modifier = Modifier.padding(top = 16.dp)
             )
 
-            if (devices.isEmpty()) {
-                Text(
-                    text = "Aucun appareil détecté.",
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            } else {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    devices.forEach { device ->
-                        DeviceItem(device)
-                    }
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(devices) { device ->
+                    DeviceCard(device)
                 }
             }
         }
     }
 
+    @SuppressLint("MissingPermission")
     @Composable
-    fun DeviceItem(device: BluetoothDevice) {
+    fun DeviceCard(device: BluetoothDevice) {
+        val context = LocalContext.current
         val deviceName = device.name ?: "Nom inconnu"
         val deviceAddress = device.address
 
-        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            Text(text = "Nom : $deviceName", fontSize = 16.sp)
-            Text(text = "Adresse : $deviceAddress", fontSize = 14.sp)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+                .clickable {
+                    val intent = Intent(context, DeviceActivity::class.java).apply {
+                        putExtra("DEVICE_NAME", deviceName)
+                        putExtra("DEVICE_ADDRESS", deviceAddress)
+                    }
+                    context.startActivity(intent)
+                },
+            elevation = CardDefaults.cardElevation(4.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(text = "Nom : $deviceName", fontSize = 18.sp)
+                Text(text = "Adresse : $deviceAddress", fontSize = 14.sp)
+            }
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun startScan(
         devices: MutableList<BluetoothDevice>,
         seenAddresses: MutableList<String>
@@ -130,8 +142,8 @@ class ScanActivity : ComponentActivity() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 val device = result.device
                 if (device.address !in seenAddresses) {
-                    seenAddresses.add(device.address) // Ajouter une adresse unique
-                    devices.add(device) // Ajouter l'appareil correspondant
+                    seenAddresses.add(device.address)
+                    devices.add(device)
                 }
             }
 
@@ -157,6 +169,7 @@ class ScanActivity : ComponentActivity() {
         Toast.makeText(this, "Scan démarré.", Toast.LENGTH_SHORT).show()
     }
 
+    @SuppressLint("MissingPermission")
     private fun stopScan() {
         bluetoothLeScanner?.stopScan(object : ScanCallback() {})
         Toast.makeText(this, "Scan arrêté.", Toast.LENGTH_SHORT).show()
